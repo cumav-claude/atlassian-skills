@@ -1,162 +1,82 @@
-# Atlassian Skills for Claude Code - Jira, Confluence & Bitbucket Integration
+# Jira Readonly Skills for Claude Code - Jira Data Center and Xray Integration
 
-A Claude Code skill for integrating with Jira, Confluence, and Bitbucket. Supports both Cloud and Data Center deployments.
+A read-only Claude Code skill for Jira Data Center / Server and the Xray test management app. It lets Claude look up issues, run JQL searches, inspect boards, sprints, worklogs, projects, versions, and users, and read Xray tests, executions, plans, and requirement coverage, without being able to change anything in Jira.
 
-**Note**: This project has been tested and verified on Atlassian Data Center. Cloud functionality has not been verified yet. If you encounter any issues with Cloud deployments, please report them.
+**Note**: This project targets Atlassian Data Center / Server only. Jira Cloud, Confluence, and Bitbucket are not supported.
 
 ## What is a Skill?
 
-Skills are folders containing a `SKILL.md` file that teach Claude Code new capabilities. When you add this skill to your project, Claude can directly interact with your Atlassian products - creating issues, searching pages, managing pull requests, and more.
+Skills are folders containing a `SKILL.md` file that teach Claude Code new capabilities. When you add this skill to your project, Claude can directly query your Jira instance.
 
 Learn more: https://docs.anthropic.com/en/docs/claude-code/skills
 
-## Choosing the Right Skill Variant
-
-This project provides two skill variants to match your access needs:
-
-### atlassian-skills (Full Access)
-
-The complete skill with all read and write operations. Use this if you need Claude to:
-- Create, update, or delete Jira issues
-- Create or modify Confluence pages
-- Create or merge pull requests in Bitbucket
-- Perform any write operations
-
-### atlassian-readonly-skills (Read-Only Access)
-
-A streamlined variant containing only read operations. **Recommended if you only need read access** because it:
-- **Reduces token consumption** - Smaller SKILL.md means less context sent to the LLM
-- **Prevents accidental modifications** - No write operations are exposed
-- **Improves safety** - Ideal for users with read-only permissions or when you want to prevent data changes
-
-The readonly variant includes:
-- Viewing Jira issues, searching with JQL, checking workflows and sprints
-- Reading Confluence pages, searching with CQL, viewing comments and labels
-- Browsing Bitbucket projects, repositories, pull requests, and commits
-
-Choose `atlassian-readonly-skills` unless you specifically need write capabilities.
-
 ## Features
 
-- **Jira**: Issue management, search (JQL), workflows, agile boards, sprints, worklogs
-- **Confluence**: Page management, search (CQL), comments, labels
-- **Bitbucket**: Projects, repositories, pull requests, code search, commit history
-- **Dual Authentication**: Cloud (API Token) and Data Center (PAT Token)
+- **Issues**: Get issue details, available transitions, worklog entries
+- **Search**: JQL search with pagination, field definition lookup
+- **Agile**: Boards, board issues, sprints, sprint issues
+- **Projects**: Project list, project issues, versions
+- **Users**: Profile lookup by username, email, or display name
+- **Xray**: Tests and steps, execution results, test runs with step results and defects, test plans, requirement coverage
+- **Release Report**: Per-story release verdict with covering tests nested, and stories a test plan missed
+- **Read-Only by Construction**: The HTTP client only implements GET
+- **PAT Authentication**: Personal Access Token, the Data Center standard
 - **Unified Response Format**: All functions return flattened JSON structures
 
 ## Installation
 
-1. Clone or copy the skill folder into your project:
-   - `atlassian-skills` for full read/write access
-   - `atlassian-readonly-skills` for read-only access (recommended if you don't need write operations)
+1. Clone or copy the `jira-readonly-skills` folder into your project.
 
 2. Install dependencies:
 
 ```bash
-# For full access
-pip install -r atlassian-skills/requirements.txt
-
-# For read-only access
-pip install -r atlassian-readonly-skills/requirements.txt
+pip install -r jira-readonly-skills/requirements.txt
 ```
 
 ## Configuration
 
-Create a `.env` file in the skill folder (copy from `.env.example`):
-- `atlassian-skills/.env` for full access
-- `atlassian-readonly-skills/.env` for read-only access
-
-Both variants use the same configuration format:
-
-### Jira
+Create a `.env` file in `jira-readonly-skills/` (copy from `.env.example`):
 
 ```bash
-# Cloud
-JIRA_URL=https://your-company.atlassian.net
-JIRA_USERNAME=your.email@company.com
-JIRA_API_TOKEN=your_api_token
-
-# Data Center / Server
 JIRA_URL=https://jira.your-company.com
 JIRA_PAT_TOKEN=your_pat_token
+
+# Optional, defaults to false
+# JIRA_SSL_VERIFY=true
 ```
 
-### Confluence
+Get your PAT in Jira: Profile → Personal Access Tokens → Create token. The same PAT is used for Xray.
 
-```bash
-# Cloud
-CONFLUENCE_URL=https://your-company.atlassian.net/wiki
-CONFLUENCE_USERNAME=your.email@company.com
-CONFLUENCE_API_TOKEN=your_api_token
-
-# Data Center / Server
-CONFLUENCE_URL=https://confluence.your-company.com
-CONFLUENCE_PAT_TOKEN=your_pat_token
-```
-
-### Bitbucket
-
-```bash
-BITBUCKET_URL=https://bitbucket.your-company.com
-BITBUCKET_PAT_TOKEN=your_pat_token
-```
-
-Get your API tokens:
-- **Cloud**: https://id.atlassian.com/manage-profile/security/api-tokens
-- **Data Center**: Profile → Personal Access Tokens
+Credentials can also be passed programmatically for agent environments without environment variables. See `jira-readonly-skills/SKILL.md` for the `AtlassianCredentials` object.
 
 ## Quick Start
 
-Once configured, simply ask Claude to perform Atlassian operations:
-
-### Jira Examples
+Once configured, simply ask Claude to query Jira:
 
 ```
-"Create a bug in project MYPROJ with title 'Login button not working' and high priority"
+"Show me MYPROJ-123"
 
 "Search for all in-progress issues assigned to me"
 
-"Transition MYPROJ-123 to Done with a comment"
+"What transitions are available for MYPROJ-123?"
 
-"Add 2 hours of work to MYPROJ-456"
+"Show the worklog on MYPROJ-456"
 
-"Show me all sprints on board 10"
-```
+"List the active sprints on board 10"
 
-### Confluence Examples
+"Which versions does project MYPROJ have?"
 
-```
-"Create a new page in DEV space titled 'API Documentation'"
+"Show the results of test execution TE-5"
 
-"Search for pages containing 'deployment guide'"
+"Which stories in version 2.1 have no tests?"
 
-"Add a comment to page 12345"
-
-"Add label 'reviewed' to the architecture page"
-```
-
-### Bitbucket Examples
-
-```
-"Create a pull request from feature/auth to master in my-repo"
-
-"Show me the last 10 commits on develop branch"
-
-"Search for code containing 'authenticate' in project PROJ"
-
-"Get the diff for PR #42"
+"Can version 2.1 be released based on test plan TP-1? Write a release report."
 ```
 
 ## Available Functions
 
-### Jira
-
 **jira_issues**
 - `jira_get_issue` - Get issue details
-- `jira_create_issue` - Create a new issue
-- `jira_update_issue` - Update an existing issue
-- `jira_delete_issue` - Delete an issue
-- `jira_add_comment` - Add a comment to an issue
 
 **jira_search**
 - `jira_search` - Search issues using JQL
@@ -164,100 +84,74 @@ Once configured, simply ask Claude to perform Atlassian operations:
 
 **jira_workflow**
 - `jira_get_transitions` - Get available status transitions
-- `jira_transition_issue` - Transition issue to a new status
 
 **jira_agile**
 - `jira_get_agile_boards` - Get agile boards
 - `jira_get_board_issues` - Get issues from a board
 - `jira_get_sprints_from_board` - Get sprints from a board
 - `jira_get_sprint_issues` - Get issues in a sprint
-- `jira_create_sprint` - Create a new sprint
-- `jira_update_sprint` - Update a sprint
 
 **jira_links**
 - `jira_get_link_types` - Get available link types
-- `jira_create_issue_link` - Create a link between issues
-- `jira_link_to_epic` - Link an issue to an epic
-- `jira_remove_issue_link` - Remove a link
 
 **jira_worklog**
 - `jira_get_worklog` - Get worklog entries
-- `jira_add_worklog` - Add a worklog entry
 
 **jira_projects**
 - `jira_get_all_projects` - Get all projects
 - `jira_get_project_issues` - Get issues for a project
 - `jira_get_project_versions` - Get versions for a project
-- `jira_create_version` - Create a new version
 
 **jira_users**
 - `jira_get_user_profile` - Get user profile
 
-### Confluence
+**xray_tests**
+- `xray_get_tests` - Export tests by keys, JQL, or filter
+- `xray_get_test_steps` - Manual step definitions of a test
+- `xray_get_test_preconditions` - Pre-conditions of a test
+- `xray_get_test_sets` - Test sets containing a test
+- `xray_get_test_plans` - Test plans containing a test
+- `xray_get_test_executions` - Test executions containing a test
+- `xray_get_test_runs` - All runs of a test
+- `xray_get_test_set_tests` - Tests in a test set
 
-**confluence_pages**
-- `confluence_get_page` - Get a page by ID or title
-- `confluence_create_page` - Create a new page
-- `confluence_update_page` - Update an existing page
-- `confluence_delete_page` - Delete a page
+**xray_executions**
+- `xray_get_test_execution_tests` - Tests in an execution with run status and defects
+- `xray_get_test_run` - One test run
+- `xray_get_test_run_steps` - Step-level results of a run
+- `xray_get_test_statuses` - Configured test statuses
+- `xray_get_test_step_statuses` - Configured step statuses
 
-**confluence_search**
-- `confluence_search` - Search content using CQL
+**xray_plans**
+- `xray_get_test_plan_tests` - Tests in a plan with latest status
+- `xray_get_test_plan_executions` - Executions of a plan
 
-**confluence_comments**
-- `confluence_get_comments` - Get comments for a page
-- `confluence_add_comment` - Add a comment to a page
+**xray_coverage**
+- `xray_get_requirement_tests` - Tests covering a requirement
+- `xray_get_test_requirements` - Requirements covered by a test
+- `xray_get_test_plan_requirements` - Requirements covered by a plan
+- `xray_get_requirements_by_status` - Requirements by coverage status (OK, NOK, NOTRUN, UNCOVERED)
 
-**confluence_labels**
-- `confluence_get_labels` - Get labels for a page
-- `confluence_add_label` - Add a label to a page
-- `confluence_remove_label` - Remove a label from a page
+**xray_release_report**
+- `xray_release_report` - Release readiness report by test plan and/or fixVersion
 
-### Bitbucket
-
-**bitbucket_projects**
-- `bitbucket_list_projects` - List projects
-- `bitbucket_list_repositories` - List repositories
-
-**bitbucket_pull_requests**
-- `bitbucket_create_pull_request` - Create a pull request
-- `bitbucket_get_pull_request` - Get pull request details
-- `bitbucket_merge_pull_request` - Merge a pull request
-- `bitbucket_decline_pull_request` - Decline a pull request
-- `bitbucket_add_pr_comment` - Add a comment to a pull request
-- `bitbucket_get_pr_diff` - Get the diff of a pull request
-
-**bitbucket_files**
-- `bitbucket_get_file_content` - Get file content from a repository
-- `bitbucket_search` - Search for code or files
-
-**bitbucket_commits**
-- `bitbucket_get_commits` - Get commit history
-- `bitbucket_get_commit` - Get details of a specific commit
+See `jira-readonly-skills/REFERENCE.md` for detailed examples.
 
 ## Error Handling
 
-All functions return JSON with consistent error format:
+All functions return JSON with a consistent error format:
 
 ```json
 {
   "success": false,
-  "error": "Issue not found: PROJ-999",
+  "error": "Resource not found: Issue Does Not Exist",
   "error_type": "NotFoundError"
 }
 ```
 
 Error types: `ConfigurationError`, `AuthenticationError`, `ValidationError`, `NotFoundError`, `APIError`, `NetworkError`
 
-## Time Format Reference
-
-For worklogs: `1w` (week), `2d` (days), `3h` (hours), `30m` (minutes), or combined like `1d 4h 30m`
-
 ## Testing
-
-This project includes comprehensive test coverage with **203 test cases** covering all 45 methods across Jira, Confluence, and Bitbucket.
-
-### Run Tests
 
 ```bash
 # Install test dependencies
@@ -266,16 +160,33 @@ pip install -r test/requirements.txt
 # Run all tests
 pytest test/ -v
 
-# Run specific module tests
-pytest test/test_jira_*.py -v
-pytest test/test_confluence_*.py -v
-pytest test/test_bitbucket_*.py -v
-
 # Generate coverage report
-pytest test/ --cov=atlassian-skills/scripts --cov-report=html
+pytest test/ --cov=jira-readonly-skills/scripts --cov-report=html
 ```
 
-See [test/README.md](test/README.md) for detailed testing documentation.
+See [test/README.md](test/README.md) for details.
+
+## Development
+
+- Skill code lives in `jira-readonly-skills/scripts/`. Every module exposes read functions only and shares `_common.py` for configuration, the GET-only HTTP client, and response formatting.
+- Xray modules (`xray_*.py`) use the Xray Server/DC REST API v1.0 under `/rest/raven/1.0/api/` and the Xray JQL functions. Xray Cloud is not supported.
+- When adding a function, keep it read-only (GET requests only), document it in `SKILL.md` and `REFERENCE.md`, and add tests under `test/`.
+
+## Roadmap
+
+### TODO: Identity pseudonymization layer
+
+Goal: the LLM never sees real usernames, emails, or display names from Jira, but JQL and lookups keep working.
+
+Design sketch:
+- A local mapping store (SQLite or JSON, outside the repo, never committed) maps each person to a random stable token such as `user_7f3a`. It records every form of that person seen in responses: username, key, email, display name. Entries are created lazily on first sight.
+- **Outbound (Jira to LLM)**: structured identity fields are replaced by the token. The touch points are the shared issue simplifier (`assignee`, `reporter`), the worklog simplifier (`author`, `update_author`), the user profile simplifier, a recursive walk over `custom_fields` for user-picker fields, and the Xray run fields (`executed_by`, `assignee`) in the tests, executions, and release report modules. Free text (summary, description, comments) is left untouched.
+- **Inbound (LLM to Jira)**: every function input that can carry an identity (`jql`, `user_identifier`) has known tokens string-replaced back to the real username before the request, so `assignee = user_7f3a` reaches Jira as `assignee = jdoe`.
+- A small local CLI resolves tokens in the LLM's answers back to real names, since the skill cannot rewrite assistant output itself.
+
+Known limits:
+- In Claude Code the model has a shell, so the mapping file must be denied via permission settings to stay hidden.
+- Names typed into the prompt by the human are visible to the LLM regardless.
 
 ## License
 

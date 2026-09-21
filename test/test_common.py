@@ -8,13 +8,12 @@ from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 _base_path = Path(__file__).parent.parent
-sys.path.insert(0, str(_base_path / 'atlassian-skills'))
-sys.path.insert(0, str(_base_path / 'atlassian-skills' / 'scripts'))
+sys.path.insert(0, str(_base_path / 'jira-readonly-skills'))
+sys.path.insert(0, str(_base_path / 'jira-readonly-skills' / 'scripts'))
 
 from scripts._common import (
     format_error_response,
     format_json_response,
-    parse_time_spent,
     simplify_issue,
     AtlassianConfig,
     AtlassianClient,
@@ -67,42 +66,6 @@ class TestFormatJsonResponse:
         assert data['message'] == '中文测试'
 
 
-class TestParseTimeSpent:
-    """Tests for parse_time_spent function."""
-
-    def test_hours(self):
-        assert parse_time_spent('1h') == 3600
-        assert parse_time_spent('2h') == 7200
-
-    def test_minutes(self):
-        assert parse_time_spent('30m') == 1800
-        assert parse_time_spent('45m') == 2700
-
-    def test_days(self):
-        assert parse_time_spent('1d') == 86400
-
-    def test_weeks(self):
-        assert parse_time_spent('1w') == 604800
-
-    def test_combined(self):
-        assert parse_time_spent('1h 30m') == 5400
-        assert parse_time_spent('1d 2h') == 93600
-
-    def test_seconds_format(self):
-        assert parse_time_spent('3600s') == 3600
-
-    def test_raw_number(self):
-        assert parse_time_spent('3600') == 3600
-
-    def test_empty_raises_error(self):
-        with pytest.raises(ValidationError):
-            parse_time_spent('')
-
-    def test_invalid_format_raises_error(self):
-        with pytest.raises(ValidationError):
-            parse_time_spent('invalid')
-
-
 class TestSimplifyIssue:
     """Tests for simplify_issue function."""
 
@@ -130,20 +93,18 @@ class TestSimplifyIssue:
 class TestAtlassianConfig:
     """Tests for AtlassianConfig class."""
 
-    def test_pat_auth_type(self):
+    def test_pat_token_stored(self):
         config = AtlassianConfig(
             url='https://jira.example.com',
             pat_token='test-token'
         )
-        assert config.auth_type == 'pat'
+        assert config.pat_token == 'test-token'
+        assert config.ssl_verify is True
 
-    def test_basic_auth_type(self):
-        config = AtlassianConfig(
-            url='https://jira.example.com',
-            username='user',
-            api_token='token'
-        )
-        assert config.auth_type == 'basic'
+    def test_missing_pat_token_auth_header_raises(self):
+        config = AtlassianConfig(url='https://jira.example.com')
+        with pytest.raises(ConfigurationError):
+            config.get_auth_header()
 
     def test_url_trailing_slash_removed(self):
         config = AtlassianConfig(
@@ -152,42 +113,6 @@ class TestAtlassianConfig:
         )
         assert config.url == 'https://jira.example.com'
 
-    def test_is_cloud_detection(self):
-        cloud_config = AtlassianConfig(
-            url='https://company.atlassian.net',
-            username='user',
-            api_token='token'
-        )
-        assert cloud_config.is_cloud is True
-
-        server_config = AtlassianConfig(
-            url='https://jira.company.com',
-            pat_token='token'
-        )
-        assert server_config.is_cloud is False
-
-    def test_api_version_detection(self):
-        cloud_config = AtlassianConfig(
-            url='https://company.atlassian.net',
-            username='user',
-            api_token='token'
-        )
-        assert cloud_config.detect_api_version() == '3'
-
-        server_config = AtlassianConfig(
-            url='https://jira.company.com',
-            pat_token='token'
-        )
-        assert server_config.detect_api_version() == '2'
-
-    def test_explicit_api_version(self):
-        config = AtlassianConfig(
-            url='https://jira.example.com',
-            pat_token='token',
-            api_version='3'
-        )
-        assert config.detect_api_version() == '3'
-
     def test_get_auth_header_pat(self):
         config = AtlassianConfig(
             url='https://jira.example.com',
@@ -195,15 +120,6 @@ class TestAtlassianConfig:
         )
         header = config.get_auth_header()
         assert header['Authorization'] == 'Bearer test-token'
-
-    def test_get_auth_header_basic(self):
-        config = AtlassianConfig(
-            url='https://jira.example.com',
-            username='user',
-            api_token='token'
-        )
-        header = config.get_auth_header()
-        assert 'Basic' in header['Authorization']
 
     @patch.dict(os.environ, {
         'TEST_URL': 'https://test.example.com',
@@ -214,10 +130,24 @@ class TestAtlassianConfig:
         assert config.url == 'https://test.example.com'
         assert config.pat_token == 'test-pat'
 
+    @patch.dict(os.environ, {
+        'TEST_URL': 'https://test.example.com',
+        'TEST_PAT_TOKEN': 'test-pat',
+        'TEST_SSL_VERIFY': 'true'
+    })
+    def test_from_env_ssl_verify(self):
+        config = AtlassianConfig.from_env('TEST')
+        assert config.ssl_verify is True
+
     @patch.dict(os.environ, {}, clear=True)
     def test_from_env_missing_url(self):
         with pytest.raises(ConfigurationError):
             AtlassianConfig.from_env('MISSING')
+
+    @patch.dict(os.environ, {'TEST_URL': 'https://test.example.com'}, clear=True)
+    def test_from_env_missing_pat_token(self):
+        with pytest.raises(ConfigurationError):
+            AtlassianConfig.from_env('TEST')
 
 
 class TestAtlassianClient:
@@ -230,6 +160,23 @@ class TestAtlassianClient:
         )
         client = AtlassianClient(config)
         assert client.api_path('issue/TEST-1') == '/rest/api/2/issue/TEST-1'
+
+    def test_api_version_is_v2(self):
+        config = AtlassianConfig(
+            url='https://jira.example.com',
+            pat_token='token'
+        )
+        client = AtlassianClient(config)
+        assert client.api_version == '2'
+
+    def test_client_is_read_only(self):
+        config = AtlassianConfig(
+            url='https://jira.example.com',
+            pat_token='token'
+        )
+        client = AtlassianClient(config)
+        for method in ('post', 'put', 'delete', 'patch'):
+            assert not hasattr(client, method)
 
     def test_api_path_strips_leading_slash(self):
         config = AtlassianConfig(

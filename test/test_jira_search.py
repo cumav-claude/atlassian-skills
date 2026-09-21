@@ -7,8 +7,8 @@ from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 _base_path = Path(__file__).parent.parent
-sys.path.insert(0, str(_base_path / 'atlassian-skills'))
-sys.path.insert(0, str(_base_path / 'atlassian-skills' / 'scripts'))
+sys.path.insert(0, str(_base_path / 'jira-readonly-skills'))
+sys.path.insert(0, str(_base_path / 'jira-readonly-skills' / 'scripts'))
 
 from scripts.jira_search import jira_search, jira_search_fields
 
