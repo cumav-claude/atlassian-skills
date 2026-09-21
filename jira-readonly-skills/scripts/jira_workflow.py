@@ -63,8 +63,10 @@ def _simplify_transition(transition_data: Dict[str, Any]) -> Dict[str, Any]:
     return simplified
 
 
-def jira_get_transitions(issue_key: str,
-    credentials: Optional[AtlassianCredentials] = None) -> str:
+def jira_get_transitions(
+    issue_key: str,
+    credentials: Optional[AtlassianCredentials] = None
+) -> str:
     """Get available status transitions for a Jira issue.
     
     Args:

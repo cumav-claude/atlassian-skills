@@ -7,14 +7,13 @@ from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 _base_path = Path(__file__).parent.parent
-sys.path.insert(0, str(_base_path / 'atlassian-skills'))
-sys.path.insert(0, str(_base_path / 'atlassian-skills' / 'scripts'))
+sys.path.insert(0, str(_base_path / 'jira-readonly-skills'))
+sys.path.insert(0, str(_base_path / 'jira-readonly-skills' / 'scripts'))
 
 from scripts.jira_projects import (
     jira_get_all_projects,
     jira_get_project_issues,
     jira_get_project_versions,
-    jira_create_version,
 )
 
 
@@ -139,55 +138,6 @@ class TestJiraGetProjectVersions:
     def test_get_versions_missing_key(self, mock_get_client):
         mock_get_client.return_value = MagicMock()
         result = jira_get_project_versions('')
-        data = json.loads(result)
-
-        assert data['success'] is False
-        assert data['error_type'] == 'ValidationError'
-
-
-class TestJiraCreateVersion:
-    """Tests for jira_create_version function."""
-
-    @patch('scripts.jira_projects.get_jira_client')
-    def test_create_version_success(self, mock_get_client):
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.api_path = lambda x: f'/rest/api/2/{x}'
-        mock_client.post.return_value = {
-            'id': '10001',
-            'name': '2.0.0',
-            'description': 'New version',
-            'released': False,
-            'archived': False,
-            'startDate': '2024-03-01',
-            'releaseDate': '2024-04-01'
-        }
-
-        result = jira_create_version(
-            project_key='PROJ',
-            name='2.0.0',
-            description='New version',
-            start_date='2024-03-01',
-            release_date='2024-04-01'
-        )
-        data = json.loads(result)
-
-        assert data['name'] == '2.0.0'
-        assert data['released'] is False
-
-    @patch('scripts.jira_projects.get_jira_client')
-    def test_create_version_missing_project_key(self, mock_get_client):
-        mock_get_client.return_value = MagicMock()
-        result = jira_create_version(project_key='', name='1.0.0')
-        data = json.loads(result)
-
-        assert data['success'] is False
-        assert data['error_type'] == 'ValidationError'
-
-    @patch('scripts.jira_projects.get_jira_client')
-    def test_create_version_missing_name(self, mock_get_client):
-        mock_get_client.return_value = MagicMock()
-        result = jira_create_version(project_key='PROJ', name='')
         data = json.loads(result)
 
         assert data['success'] is False

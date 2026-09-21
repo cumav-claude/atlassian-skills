@@ -5,8 +5,6 @@ Tools:
     - jira_get_board_issues: Get issues from a board
     - jira_get_sprints_from_board: Get sprints from a board
     - jira_get_sprint_issues: Get issues in a sprint
-    - jira_create_sprint: Create a new sprint
-    - jira_update_sprint: Update a sprint
 """
 
 import sys
@@ -56,9 +54,9 @@ def jira_get_agile_boards(
     project_key: Optional[str] = None,
     board_type: Optional[str] = None,
     start_at: int = 0,
-    limit: int = 50
-,
-    credentials: Optional[AtlassianCredentials] = None) -> str:
+    limit: int = 50,
+    credentials: Optional[AtlassianCredentials] = None
+) -> str:
     """Search for Jira agile boards.
     
     Args:
@@ -114,9 +112,9 @@ def jira_get_board_issues(
     jql: Optional[str] = None,
     fields: Optional[str] = None,
     start_at: int = 0,
-    limit: int = 50
-,
-    credentials: Optional[AtlassianCredentials] = None) -> str:
+    limit: int = 50,
+    credentials: Optional[AtlassianCredentials] = None
+) -> str:
     """Get issues from a Jira agile board.
     
     Args:
@@ -177,9 +175,9 @@ def jira_get_sprints_from_board(
     board_id: str,
     state: Optional[str] = None,
     start_at: int = 0,
-    limit: int = 50
-,
-    credentials: Optional[AtlassianCredentials] = None) -> str:
+    limit: int = 50,
+    credentials: Optional[AtlassianCredentials] = None
+) -> str:
     """Get sprints from a Jira agile board.
     
     Args:
@@ -239,9 +237,9 @@ def jira_get_sprint_issues(
     sprint_id: str,
     fields: Optional[str] = None,
     start_at: int = 0,
-    limit: int = 50
-,
-    credentials: Optional[AtlassianCredentials] = None) -> str:
+    limit: int = 50,
+    credentials: Optional[AtlassianCredentials] = None
+) -> str:
     """Get all issues in a specific sprint.
     
     Args:
@@ -280,126 +278,6 @@ def jira_get_sprint_issues(
         }
         
         return format_json_response(result)
-        
-    except ConfigurationError as e:
-        return format_error_response('ConfigurationError', str(e))
-    except AuthenticationError as e:
-        return format_error_response('AuthenticationError', str(e))
-    except ValidationError as e:
-        return format_error_response('ValidationError', str(e))
-    except NotFoundError as e:
-        return format_error_response('NotFoundError', str(e))
-    except (APIError, NetworkError) as e:
-        return format_error_response(type(e).__name__, str(e))
-    except Exception as e:
-        return format_error_response('UnexpectedError', f'Unexpected error: {str(e)}')
-
-
-def jira_create_sprint(
-    board_id: str,
-    sprint_name: str,
-    start_date: str,
-    end_date: str,
-    goal: Optional[str] = None
-,
-    credentials: Optional[AtlassianCredentials] = None) -> str:
-    """Create a new sprint on a Jira agile board.
-    
-    Args:
-        board_id: Board ID to create the sprint on
-        sprint_name: Name for the new sprint
-        start_date: Start date in ISO format
-        end_date: End date in ISO format
-        goal: Sprint goal description (optional)
-    
-    Returns:
-        JSON string with created sprint data or error information
-    """
-    try:
-        client = get_jira_client(credentials)
-        
-        if not board_id:
-            raise ValidationError('board_id is required')
-        if not sprint_name:
-            raise ValidationError('sprint_name is required')
-        if not start_date:
-            raise ValidationError('start_date is required')
-        if not end_date:
-            raise ValidationError('end_date is required')
-        
-        payload: Dict[str, Any] = {
-            'name': sprint_name,
-            'originBoardId': int(board_id),
-            'startDate': start_date,
-            'endDate': end_date
-        }
-        if goal:
-            payload['goal'] = goal
-        
-        response = client.post('/rest/agile/1.0/sprint', json=payload)
-        simplified = _simplify_sprint(response)
-        
-        return format_json_response(simplified)
-        
-    except ConfigurationError as e:
-        return format_error_response('ConfigurationError', str(e))
-    except AuthenticationError as e:
-        return format_error_response('AuthenticationError', str(e))
-    except ValidationError as e:
-        return format_error_response('ValidationError', str(e))
-    except (APIError, NetworkError) as e:
-        return format_error_response(type(e).__name__, str(e))
-    except Exception as e:
-        return format_error_response('UnexpectedError', f'Unexpected error: {str(e)}')
-
-
-def jira_update_sprint(
-    sprint_id: str,
-    sprint_name: Optional[str] = None,
-    state: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    goal: Optional[str] = None
-,
-    credentials: Optional[AtlassianCredentials] = None) -> str:
-    """Update an existing sprint's configuration.
-    
-    Args:
-        sprint_id: Sprint ID to update
-        sprint_name: New name for the sprint (optional)
-        state: New state ('future', 'active', 'closed') (optional)
-        start_date: New start date in ISO format (optional)
-        end_date: New end date in ISO format (optional)
-        goal: New sprint goal description (optional)
-    
-    Returns:
-        JSON string with updated sprint data or error information
-    """
-    try:
-        client = get_jira_client(credentials)
-        
-        if not sprint_id:
-            raise ValidationError('sprint_id is required')
-        
-        payload: Dict[str, Any] = {}
-        if sprint_name is not None:
-            payload['name'] = sprint_name
-        if state is not None:
-            payload['state'] = state
-        if start_date is not None:
-            payload['startDate'] = start_date
-        if end_date is not None:
-            payload['endDate'] = end_date
-        if goal is not None:
-            payload['goal'] = goal
-        
-        if not payload:
-            raise ValidationError('At least one field to update is required')
-        
-        response = client.put(f'/rest/agile/1.0/sprint/{sprint_id}', json=payload)
-        simplified = _simplify_sprint(response)
-        
-        return format_json_response(simplified)
         
     except ConfigurationError as e:
         return format_error_response('ConfigurationError', str(e))

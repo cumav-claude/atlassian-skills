@@ -45,8 +45,10 @@ def _simplify_worklog(worklog_data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def jira_get_worklog(issue_key: str,
-    credentials: Optional[AtlassianCredentials] = None) -> str:
+def jira_get_worklog(
+    issue_key: str,
+    credentials: Optional[AtlassianCredentials] = None
+) -> str:
     """Retrieve all worklog entries for a Jira issue.
     
     Args:

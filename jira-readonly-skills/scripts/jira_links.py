@@ -33,7 +33,8 @@ def _simplify_link_type(link_type_data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def jira_get_link_types(
-    credentials: Optional[AtlassianCredentials] = None) -> str:
+    credentials: Optional[AtlassianCredentials] = None
+) -> str:
     """Get all available issue link types.
     
     Returns:

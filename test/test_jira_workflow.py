@@ -7,10 +7,10 @@ from unittest.mock import patch, MagicMock
 import sys
 from pathlib import Path
 _base_path = Path(__file__).parent.parent
-sys.path.insert(0, str(_base_path / 'atlassian-skills'))
-sys.path.insert(0, str(_base_path / 'atlassian-skills' / 'scripts'))
+sys.path.insert(0, str(_base_path / 'jira-readonly-skills'))
+sys.path.insert(0, str(_base_path / 'jira-readonly-skills' / 'scripts'))
 
-from scripts.jira_workflow import jira_get_transitions, jira_transition_issue
+from scripts.jira_workflow import jira_get_transitions
 
 
 class TestJiraGetTransitions:
@@ -86,76 +86,6 @@ class TestJiraGetTransitions:
     def test_get_transitions_missing_key(self, mock_get_client):
         mock_get_client.return_value = MagicMock()
         result = jira_get_transitions('')
-        data = json.loads(result)
-
-        assert data['success'] is False
-        assert data['error_type'] == 'ValidationError'
-
-
-class TestJiraTransitionIssue:
-    """Tests for jira_transition_issue function."""
-
-    @patch('scripts.jira_workflow.get_jira_client')
-    def test_transition_success(self, mock_get_client, sample_issue_data):
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.api_path = lambda x: f'/rest/api/2/{x}'
-        mock_client.post.return_value = {}
-        mock_client.get.return_value = sample_issue_data
-
-        result = jira_transition_issue('PROJ-123', '11')
-        data = json.loads(result)
-
-        assert data['key'] == 'PROJ-123'
-        mock_client.post.assert_called_once()
-
-    @patch('scripts.jira_workflow.get_jira_client')
-    def test_transition_with_fields(self, mock_get_client, sample_issue_data):
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.api_path = lambda x: f'/rest/api/2/{x}'
-        mock_client.post.return_value = {}
-        mock_client.get.return_value = sample_issue_data
-
-        result = jira_transition_issue(
-            'PROJ-123',
-            '21',
-            fields={'resolution': {'name': 'Done'}}
-        )
-        data = json.loads(result)
-
-        assert data['key'] == 'PROJ-123'
-
-    @patch('scripts.jira_workflow.get_jira_client')
-    def test_transition_with_comment(self, mock_get_client, sample_issue_data):
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.api_path = lambda x: f'/rest/api/2/{x}'
-        mock_client.post.return_value = {}
-        mock_client.get.return_value = sample_issue_data
-
-        result = jira_transition_issue(
-            'PROJ-123',
-            '11',
-            comment='Starting work on this issue'
-        )
-        data = json.loads(result)
-
-        assert data['key'] == 'PROJ-123'
-
-    @patch('scripts.jira_workflow.get_jira_client')
-    def test_transition_missing_key(self, mock_get_client):
-        mock_get_client.return_value = MagicMock()
-        result = jira_transition_issue('', '11')
-        data = json.loads(result)
-
-        assert data['success'] is False
-        assert data['error_type'] == 'ValidationError'
-
-    @patch('scripts.jira_workflow.get_jira_client')
-    def test_transition_missing_id(self, mock_get_client):
-        mock_get_client.return_value = MagicMock()
-        result = jira_transition_issue('PROJ-123', '')
         data = json.loads(result)
 
         assert data['success'] is False
