@@ -7,11 +7,12 @@ This module provides shared functionality used by all Jira scripts:
 - Response formatting
 """
 
+import functools
 import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -29,6 +30,9 @@ if _env_path.exists():
 
 # Jira Data Center / Server uses REST API v2
 JIRA_API_VERSION = "2"
+
+# Xray for Jira Data Center / Server REST API version
+XRAY_API_VERSION = "1.0"
 
 
 # =============================================================================
@@ -270,6 +274,18 @@ class AtlassianClient:
         endpoint = endpoint.lstrip('/')
         return f"/rest/api/{self.api_version}/{endpoint}"
 
+    def xray_path(self, endpoint: str) -> str:
+        """Build an Xray REST API path.
+
+        Args:
+            endpoint: Xray endpoint (e.g., 'testplan/TP-1/test')
+
+        Returns:
+            Full API path (e.g., '/rest/raven/1.0/api/testplan/TP-1/test')
+        """
+        endpoint = endpoint.lstrip('/')
+        return f"/rest/raven/{XRAY_API_VERSION}/api/{endpoint}"
+
     def get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Perform a GET request."""
         url = f"{self.config.url}{path}"
@@ -359,6 +375,105 @@ def check_available_skills(credentials: AtlassianCredentials) -> Dict[str, Any]:
     if reason is None:
         return {"available_services": ["jira"], "unavailable_services": {}}
     return {"available_services": [], "unavailable_services": {"jira": reason}}
+
+
+def skill_function(func: Callable[..., Any]) -> Callable[..., str]:
+    """Decorator that turns skill exceptions into the standard JSON error response.
+
+    The wrapped function returns a JSON-serializable object on success; the
+    decorator serializes it with format_json_response.
+    """
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> str:
+        try:
+            return format_json_response(func(*args, **kwargs))
+        except ConfigurationError as e:
+            return format_error_response('ConfigurationError', str(e))
+        except AuthenticationError as e:
+            return format_error_response('AuthenticationError', str(e))
+        except ValidationError as e:
+            return format_error_response('ValidationError', str(e))
+        except NotFoundError as e:
+            return format_error_response('NotFoundError', str(e))
+        except (APIError, NetworkError) as e:
+            return format_error_response(type(e).__name__, str(e))
+        except Exception as e:
+            return format_error_response('UnexpectedError', f'Unexpected error: {str(e)}')
+    return wrapper
+
+
+def paginate_xray(
+    client: AtlassianClient,
+    path: str,
+    params: Optional[Dict[str, Any]] = None,
+    page_size: int = 100,
+    max_items: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """Fetch all pages of a page/limit paginated Xray list endpoint.
+
+    Args:
+        client: Configured client
+        path: Full API path
+        params: Extra query parameters
+        page_size: Items per page (must not exceed the Xray configured maximum)
+        max_items: Stop after this many items (optional)
+
+    Returns:
+        Concatenated list of items from all pages
+    """
+    items: List[Dict[str, Any]] = []
+    page = 1
+    while True:
+        query = dict(params or {})
+        query.update({'page': page, 'limit': page_size})
+        batch = client.get(path, params=query)
+        if not isinstance(batch, list) or not batch:
+            break
+        items.extend(batch)
+        if max_items is not None and len(items) >= max_items:
+            return items[:max_items]
+        if len(batch) < page_size:
+            break
+        page += 1
+    return items
+
+
+def search_all_issues(
+    client: AtlassianClient,
+    jql: str,
+    fields: str,
+    max_issues: int = 1000,
+    page_size: int = 100
+) -> List[Dict[str, Any]]:
+    """Run a JQL search and return raw issues across all pages.
+
+    Args:
+        client: Configured client
+        jql: JQL query
+        fields: Comma-separated fields to return
+        max_issues: Upper bound on returned issues
+        page_size: Page size per request
+
+    Returns:
+        List of raw issue dictionaries
+    """
+    issues: List[Dict[str, Any]] = []
+    start_at = 0
+    while len(issues) < max_issues:
+        params = {
+            'jql': jql,
+            'fields': fields,
+            'startAt': start_at,
+            'maxResults': min(page_size, max_issues - len(issues))
+        }
+        response = client.get(client.api_path('search'), params=params)
+        batch = response.get('issues', [])
+        issues.extend(batch)
+        total = response.get('total', 0)
+        start_at += len(batch)
+        if not batch or start_at >= total:
+            break
+    return issues
 
 
 def simplify_issue(issue_data: Dict[str, Any]) -> Dict[str, Any]:

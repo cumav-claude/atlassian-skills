@@ -1,6 +1,6 @@
-# Jira Readonly Skills for Claude Code - Jira Data Center Integration
+# Jira Readonly Skills for Claude Code - Jira Data Center and Xray Integration
 
-A read-only Claude Code skill for Jira Data Center / Server. It lets Claude look up issues, run JQL searches, inspect boards, sprints, worklogs, projects, versions, and users, without being able to change anything in Jira.
+A read-only Claude Code skill for Jira Data Center / Server and the Xray test management app. It lets Claude look up issues, run JQL searches, inspect boards, sprints, worklogs, projects, versions, and users, and read Xray tests, executions, plans, and requirement coverage, without being able to change anything in Jira.
 
 **Note**: This project targets Atlassian Data Center / Server only. Jira Cloud, Confluence, and Bitbucket are not supported.
 
@@ -17,6 +17,8 @@ Learn more: https://docs.anthropic.com/en/docs/claude-code/skills
 - **Agile**: Boards, board issues, sprints, sprint issues
 - **Projects**: Project list, project issues, versions
 - **Users**: Profile lookup by username, email, or display name
+- **Xray**: Tests and steps, execution results, test runs with step results and defects, test plans, requirement coverage
+- **Release Report**: Per-story release verdict with covering tests nested, and stories a test plan missed
 - **Read-Only by Construction**: The HTTP client only implements GET
 - **PAT Authentication**: Personal Access Token, the Data Center standard
 - **Unified Response Format**: All functions return flattened JSON structures
@@ -43,7 +45,7 @@ JIRA_PAT_TOKEN=your_pat_token
 # JIRA_SSL_VERIFY=true
 ```
 
-Get your PAT in Jira: Profile → Personal Access Tokens → Create token.
+Get your PAT in Jira: Profile → Personal Access Tokens → Create token. The same PAT is used for Xray.
 
 Credentials can also be passed programmatically for agent environments without environment variables. See `jira-readonly-skills/SKILL.md` for the `AtlassianCredentials` object.
 
@@ -63,6 +65,12 @@ Once configured, simply ask Claude to query Jira:
 "List the active sprints on board 10"
 
 "Which versions does project MYPROJ have?"
+
+"Show the results of test execution TE-5"
+
+"Which stories in version 2.1 have no tests?"
+
+"Can version 2.1 be released based on test plan TP-1? Write a release report."
 ```
 
 ## Available Functions
@@ -96,6 +104,36 @@ Once configured, simply ask Claude to query Jira:
 
 **jira_users**
 - `jira_get_user_profile` - Get user profile
+
+**xray_tests**
+- `xray_get_tests` - Export tests by keys, JQL, or filter
+- `xray_get_test_steps` - Manual step definitions of a test
+- `xray_get_test_preconditions` - Pre-conditions of a test
+- `xray_get_test_sets` - Test sets containing a test
+- `xray_get_test_plans` - Test plans containing a test
+- `xray_get_test_executions` - Test executions containing a test
+- `xray_get_test_runs` - All runs of a test
+- `xray_get_test_set_tests` - Tests in a test set
+
+**xray_executions**
+- `xray_get_test_execution_tests` - Tests in an execution with run status and defects
+- `xray_get_test_run` - One test run
+- `xray_get_test_run_steps` - Step-level results of a run
+- `xray_get_test_statuses` - Configured test statuses
+- `xray_get_test_step_statuses` - Configured step statuses
+
+**xray_plans**
+- `xray_get_test_plan_tests` - Tests in a plan with latest status
+- `xray_get_test_plan_executions` - Executions of a plan
+
+**xray_coverage**
+- `xray_get_requirement_tests` - Tests covering a requirement
+- `xray_get_test_requirements` - Requirements covered by a test
+- `xray_get_test_plan_requirements` - Requirements covered by a plan
+- `xray_get_requirements_by_status` - Requirements by coverage status (OK, NOK, NOTRUN, UNCOVERED)
+
+**xray_release_report**
+- `xray_release_report` - Release readiness report by test plan and/or fixVersion
 
 See `jira-readonly-skills/REFERENCE.md` for detailed examples.
 
@@ -131,6 +169,7 @@ See [test/README.md](test/README.md) for details.
 ## Development
 
 - Skill code lives in `jira-readonly-skills/scripts/`. Every module exposes read functions only and shares `_common.py` for configuration, the GET-only HTTP client, and response formatting.
+- Xray modules (`xray_*.py`) use the Xray Server/DC REST API v1.0 under `/rest/raven/1.0/api/` and the Xray JQL functions. Xray Cloud is not supported.
 - When adding a function, keep it read-only (GET requests only), document it in `SKILL.md` and `REFERENCE.md`, and add tests under `test/`.
 
 ## Roadmap
@@ -141,7 +180,7 @@ Goal: the LLM never sees real usernames, emails, or display names from Jira, but
 
 Design sketch:
 - A local mapping store (SQLite or JSON, outside the repo, never committed) maps each person to a random stable token such as `user_7f3a`. It records every form of that person seen in responses: username, key, email, display name. Entries are created lazily on first sight.
-- **Outbound (Jira to LLM)**: structured identity fields are replaced by the token. The touch points are the shared issue simplifier (`assignee`, `reporter`), the worklog simplifier (`author`, `update_author`), the user profile simplifier, and a recursive walk over `custom_fields` for user-picker fields. Free text (summary, description, comments) is left untouched.
+- **Outbound (Jira to LLM)**: structured identity fields are replaced by the token. The touch points are the shared issue simplifier (`assignee`, `reporter`), the worklog simplifier (`author`, `update_author`), the user profile simplifier, a recursive walk over `custom_fields` for user-picker fields, and the Xray run fields (`executed_by`, `assignee`) in the tests, executions, and release report modules. Free text (summary, description, comments) is left untouched.
 - **Inbound (LLM to Jira)**: every function input that can carry an identity (`jql`, `user_identifier`) has known tokens string-replaced back to the real username before the request, so `assignee = user_7f3a` reaches Jira as `assignee = jdoe`.
 - A small local CLI resolves tokens in the LLM's answers back to real names, since the skill cannot rewrite assistant output itself.
 
