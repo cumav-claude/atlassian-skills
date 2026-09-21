@@ -133,6 +133,22 @@ See [test/README.md](test/README.md) for details.
 - Skill code lives in `jira-readonly-skills/scripts/`. Every module exposes read functions only and shares `_common.py` for configuration, the GET-only HTTP client, and response formatting.
 - When adding a function, keep it read-only (GET requests only), document it in `SKILL.md` and `REFERENCE.md`, and add tests under `test/`.
 
+## Roadmap
+
+### TODO: Identity pseudonymization layer
+
+Goal: the LLM never sees real usernames, emails, or display names from Jira, but JQL and lookups keep working.
+
+Design sketch:
+- A local mapping store (SQLite or JSON, outside the repo, never committed) maps each person to a random stable token such as `user_7f3a`. It records every form of that person seen in responses: username, key, email, display name. Entries are created lazily on first sight.
+- **Outbound (Jira to LLM)**: structured identity fields are replaced by the token. The touch points are the shared issue simplifier (`assignee`, `reporter`), the worklog simplifier (`author`, `update_author`), the user profile simplifier, and a recursive walk over `custom_fields` for user-picker fields. Free text (summary, description, comments) is left untouched.
+- **Inbound (LLM to Jira)**: every function input that can carry an identity (`jql`, `user_identifier`) has known tokens string-replaced back to the real username before the request, so `assignee = user_7f3a` reaches Jira as `assignee = jdoe`.
+- A small local CLI resolves tokens in the LLM's answers back to real names, since the skill cannot rewrite assistant output itself.
+
+Known limits:
+- In Claude Code the model has a shell, so the mapping file must be denied via permission settings to stay hidden.
+- Names typed into the prompt by the human are visible to the LLM regardless.
+
 ## License
 
 MIT License
